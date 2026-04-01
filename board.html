@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>クラス掲示板</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;700;900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:      #0d0f14;
+    --surface: #161b25;
+    --surface2:#1e2535;
+    --border:  #2a3245;
+    --accent:  #4f9eff;
+    --accent2: #ff6b6b;
+    --accent3: #50e3a4;
+    --text:    #e8edf5;
+    --muted:   #6b7a99;
+    --font:    'Zen Kaku Gothic New', sans-serif;
+    --mono:    'JetBrains Mono', monospace;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font);
+    min-height: 100vh;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(var(--border) 1px, transparent 1px),
+      linear-gradient(90deg, var(--border) 1px, transparent 1px);
+    background-size: 40px 40px;
+    opacity: 0.15;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ── Nav ── */
+  nav {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: rgba(13,15,20,0.9);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    height: 56px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .nav-logo {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 2px;
+  }
+
+  .nav-sep { width: 1px; height: 20px; background: var(--border); }
+
+  .nav-title {
+    font-size: 14px;
+    color: var(--muted);
+  }
+
+  .nav-right {
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .admin-badge {
+    display: none;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: #ffbb00;
+    border: 1px solid #ffbb00;
+    padding: 2px 8px;
+    border-radius: 2px;
+    letter-spacing: 1px;
+  }
+
+  /* ── Main Layout ── */
+  main {
+    position: relative;
+    z-index: 1;
+    max-width: 760px;
+    margin: 0 auto;
+    padding: 32px 16px 80px;
+  }
+
+  /* ── ページヘッダー ── */
+  .page-header {
+    margin-bottom: 28px;
+    animation: fadeUp .4s ease both;
+  }
+
+  @keyframes fadeUp {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .page-header h1 {
+    font-size: 26px;
+    font-weight: 900;
+    letter-spacing: -0.5px;
+  }
+
+  .page-header h1 span { color: var(--accent); }
+
+  .page-header p {
+    margin-top: 6px;
+    font-size: 13px;
+    color: var(--muted);
+  }
+
+  /* ── 新スレッド作成カード ── */
+  .new-thread-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 28px;
+    animation: fadeUp .4s .1s ease both;
+  }
+
+  .new-thread-card h2 {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--muted);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    font-family: var(--mono);
+    margin-bottom: 14px;
+  }
+
+  .form-row { display: flex; flex-direction: column; gap: 10px; }
+
+  input[type="text"], textarea {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    font-family: var(--font);
+    font-size: 14px;
+    padding: 12px 14px;
+    outline: none;
+    transition: border-color .2s;
+    width: 100%;
+  }
+
+  input[type="text"]::placeholder,
+  textarea::placeholder { color: var(--muted); }
+
+  input[type="text"]:focus,
+  textarea:focus { border-color: var(--accent); }
+
+  textarea {
+    resize: vertical;
+    min-height: 80px;
+    line-height: 1.6;
+  }
+
+
+  .form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 4px;
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #000;
+    font-family: var(--font);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    border: none;
+    border-radius: 6px;
+    padding: 10px 20px;
+    cursor: pointer;
+    transition: all .2s;
+  }
+
+  .btn-primary:hover {
+    background: #79b8ff;
+    box-shadow: 0 4px 16px rgba(79,158,255,0.3);
+  }
+
+  .btn-primary:disabled {
+    background: var(--border);
+    color: var(--muted);
+    cursor: not-allowed;
+    box-shadow: none;
+  }
+
+  /* ── スレッドリスト ── */
+  .threads-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+    animation: fadeUp .4s .2s ease both;
+  }
+
+  .threads-header h2 {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--muted);
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    font-family: var(--mono);
+  }
+
+  .thread-count {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--accent);
+  }
+
+  #threadList {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .thread-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 18px;
+    cursor: pointer;
+    transition: all .2s;
+    animation: fadeUp .3s ease both;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .thread-card::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: var(--accent);
+    transform: scaleY(0);
+    transition: transform .2s;
+    border-radius: 0 2px 2px 0;
+  }
+
+  .thread-card:hover {
+    border-color: var(--accent);
+    background: var(--surface2);
+    transform: translateX(2px);
+  }
+
+  .thread-card:hover::before { transform: scaleY(1); }
+
+  .thread-meta {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+
+  .thread-title {
+    font-size: 15px;
+    font-weight: 700;
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .thread-reply-count {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    flex-shrink: 0;
+    background: var(--bg);
+    padding: 2px 8px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+  }
+
+  .thread-body-preview {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.5;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+  }
+
+  .thread-thumb {
+    width: 48px;
+    height: 48px;
+    border-radius: 6px;
+    object-fit: cover;
+    flex-shrink: 0;
+    border: 1px solid var(--border);
+  }
+
+  .thread-footer {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+  }
+
+  .thread-time {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  /* 管理者削除ボタン */
+  .del-btn {
+    margin-left: auto;
+    font-size: 11px;
+    color: var(--accent2);
+    background: none;
+    border: 1px solid rgba(255,107,107,0.3);
+    border-radius: 4px;
+    padding: 2px 8px;
+    cursor: pointer;
+    font-family: var(--mono);
+    transition: all .15s;
+    display: none;
+  }
+
+  .del-btn:hover {
+    background: rgba(255,107,107,0.1);
+    border-color: var(--accent2);
+  }
+
+  /* ローディング */
+  .loading-spinner {
+    text-align: center;
+    padding: 40px;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 13px;
+    letter-spacing: 2px;
+  }
+
+  .empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--muted);
+    animation: fadeUp .4s ease both;
+  }
+
+  .empty-state .icon { font-size: 40px; margin-bottom: 12px; }
+  .empty-state p { font-size: 14px; line-height: 1.7; }
+
+  /* エラートースト */
+  #toast {
+    position: fixed;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%) translateY(80px);
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px 20px;
+    font-size: 13px;
+    color: var(--text);
+    z-index: 999;
+    transition: transform .3s;
+    white-space: nowrap;
+    max-width: 90vw;
+    text-align: center;
+  }
+
+  #toast.show { transform: translateX(-50%) translateY(0); }
+  #toast.error { border-color: var(--accent2); color: var(--accent2); }
+  #toast.success { border-color: var(--accent3); color: var(--accent3); }
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="nav-logo">CLASS BOARD</span>
+  <div class="nav-sep"></div>
+  <span class="nav-title">スレッド一覧</span>
+  <div class="nav-right">
+    <span class="admin-badge" id="adminBadge">⚡ ADMIN</span>
+  </div>
+</nav>
+
+<main>
+  <div class="page-header">
+    <h1>掲示板 <span>Board</span></h1>
+    <p>話題ごとにスレッドを立てて、みんなと話そう。</p>
+  </div>
+
+  <!-- 新スレッド作成 -->
+  <div class="new-thread-card">
+    <h2>✚ 新しいスレッドを立てる</h2>
+    <div class="form-row">
+      <input type="text" id="threadTitle" placeholder="スレッドタイトル（例：自己紹介しよう！）" maxlength="60">
+      <textarea id="threadBody" placeholder="最初のメッセージ（任意）" maxlength="1000"></textarea>
+
+      <div class="form-actions">
+        <button class="btn-primary" id="submitThread" onclick="createThread()">スレッドを立てる</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- スレッドリスト -->
+  <div class="threads-header">
+    <h2>📌 スレッド一覧</h2>
+    <span class="thread-count" id="threadCount">— 件</span>
+  </div>
+
+  <div id="threadList">
+    <div class="loading-spinner">LOADING...</div>
+  </div>
+</main>
+
+<div id="toast"></div>
+
+<!-- Firebase SDK -->
+<script type="module">
+import { initializeApp }                       from 'https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js';
+import { getFirestore, collection, addDoc,
+         onSnapshot, deleteDoc, doc,
+         query, orderBy, serverTimestamp }     from 'https://www.gstatic.com/firebasejs/12.11.0/firebase-firestore.js';
+
+// ── Firebase設定 ──
+const FIREBASE_CONFIG = {
+  apiKey:            "AIzaSyA4AnsrIEVzkJizszevxZVZ2aKjl-0T_0k",
+  authDomain:        "keiziban-6f0b2.firebaseapp.com",
+  projectId:         "keiziban-6f0b2",
+  storageBucket:     "keiziban-6f0b2.firebasestorage.app",
+  messagingSenderId: "797473242773",
+  appId:             "1:797473242773:web:0ca9fadf2147d51036659c"
+};
+
+// ★ 管理者パスワード: URLに ?admin=ここで設定したパスワード を付けると管理者モード
+const ADMIN_PASSWORD = "kairos_admin_2026";
+const NG_WORDS       = []; // NGワードを追加したい場合: ["ワード1", "ワード2"]
+
+// ── 初期化 ──
+const app = initializeApp(FIREBASE_CONFIG);
+const db  = getFirestore(app);
+
+// ── セッションID（投稿者識別用・ローカルのみ） ──
+function getSessionId() {
+  let id = localStorage.getItem('board_session_id');
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem('board_session_id', id);
+  }
+  return id;
+}
+
+const SESSION_ID = getSessionId();
+
+// ── 管理者チェック ──
+const urlParams = new URLSearchParams(window.location.search);
+const isAdmin   = urlParams.get('admin') === ADMIN_PASSWORD;
+if (isAdmin) {
+  document.getElementById('adminBadge').style.display = 'inline';
+  document.querySelectorAll('.del-btn').forEach(b => b.style.display = 'inline');
+}
+
+// ── 利用規約同意チェック ──
+if (!sessionStorage.getItem('tos_agreed')) {
+  // 管理者クエリを保持したままリダイレクト
+  window.location.href = 'index.html';
+}
+
+// ── スレッド作成 ──
+window.createThread = async function() {
+  const titleEl   = document.getElementById('threadTitle');
+  const bodyEl    = document.getElementById('threadBody');
+  const submitBtn = document.getElementById('submitThread');
+
+  const title = titleEl.value.trim();
+  const body  = bodyEl.value.trim();
+
+  if (!title) { showToast('タイトルを入力してください', 'error'); return; }
+
+  const combined = (title + ' ' + body).toLowerCase();
+  for (const word of NG_WORDS) {
+    if (combined.includes(word.toLowerCase())) {
+      showToast('禁止ワードが含まれています', 'error');
+      return;
+    }
+  }
+
+  submitBtn.disabled    = true;
+  submitBtn.textContent = '送信中...';
+
+  try {
+    await addDoc(collection(db, 'threads'), {
+      title,
+      body,
+      sessionId:  SESSION_ID,
+      replyCount: 0,
+      createdAt:  serverTimestamp()
+    });
+
+    titleEl.value = '';
+    bodyEl.value  = '';
+    showToast('スレッドを作成しました！', 'success');
+  } catch (err) {
+    console.error(err);
+    showToast('送信に失敗しました', 'error');
+  } finally {
+    submitBtn.disabled    = false;
+    submitBtn.textContent = 'スレッドを立てる';
+  }
+};
+
+// ── スレッド一覧リアルタイム購読 ──
+const threadsQuery = query(
+  collection(db, 'threads'),
+  orderBy('createdAt', 'desc')
+);
+
+onSnapshot(threadsQuery, (snapshot) => {
+  const listEl = document.getElementById('threadList');
+  document.getElementById('threadCount').textContent = `${snapshot.size} 件`;
+
+  if (snapshot.empty) {
+    listEl.innerHTML = `
+      <div class="empty-state">
+        <div class="icon">💬</div>
+        <p>まだスレッドがありません。<br>最初のスレッドを立ててみましょう！</p>
+      </div>`;
+    return;
+  }
+
+  listEl.innerHTML = '';
+  let delay = 0;
+
+  snapshot.forEach(docSnap => {
+    const d    = docSnap.data();
+    const id   = docSnap.id;
+    const time = d.createdAt?.toDate
+      ? d.createdAt.toDate().toLocaleString('ja-JP', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' })
+      : '---';
+
+    const card = document.createElement('div');
+    card.className = 'thread-card';
+    card.style.animationDelay = `${delay}s`;
+
+    const isOwner = d.sessionId === SESSION_ID;
+
+    card.innerHTML = `
+      <div class="thread-meta">
+        <div class="thread-title">${escapeHtml(d.title)}</div>
+        <span class="thread-reply-count">💬 ${d.replyCount ?? 0}</span>
+      </div>
+      <div class="thread-body-preview">${escapeHtml(d.body || '')}</div>
+      <div class="thread-footer">
+        <span class="thread-time">${time}</span>
+        ${isOwner || isAdmin ? `<button class="del-btn" data-id="${id}" style="display:inline">🗑 削除</button>` : ''}
+      </div>
+    `;
+
+    // スレッド本文クリック → thread.htmlへ
+    card.addEventListener('click', (e) => {
+      if (e.target.classList.contains('del-btn')) return;
+      const query = isAdmin ? `?admin=${ADMIN_PASSWORD}` : '';
+      window.location.href = `thread.html?id=${id}${query}`;
+    });
+
+    // 削除ボタン
+    const delBtn = card.querySelector('.del-btn');
+    if (delBtn) {
+      delBtn.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        if (!confirm('このスレッドを削除しますか？')) return;
+        await deleteDoc(doc(db, 'threads', id));
+        showToast('削除しました', 'success');
+      });
+    }
+
+    listEl.appendChild(card);
+    delay += 0.04;
+  });
+});
+
+// ── ユーティリティ ──
+function escapeHtml(str) {
+  if (!str) return '';
+  return str
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#039;');
+}
+
+function showToast(msg, type = '') {
+  const el = document.getElementById('toast');
+  el.textContent  = msg;
+  el.className    = `show ${type}`;
+  setTimeout(() => { el.className = ''; }, 3000);
+}
+</script>
+</body>
+</html>
